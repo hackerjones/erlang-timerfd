@@ -103,7 +103,7 @@ static ErlDrvSSizeT create_timer(etimerfd *data, ei_x_buff *in_x_buff,
         }
         else
         {
-            LOGGER_PRINT("%s is bad clockid");
+            LOGGER_PRINT("%s is bad clockid", atom);
             return -1; /* "Let it crash" */
         }
     }
