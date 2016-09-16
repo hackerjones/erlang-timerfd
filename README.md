@@ -13,6 +13,11 @@ Build
     $ rebar3 compile
 
 
+Documentation
+-----
+
+    $ rebar3 edoc
+
 Disclaimer
 --
 I'm new to Erlang this maybe complete crap.
