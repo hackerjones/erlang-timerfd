@@ -40,6 +40,7 @@
 #include <stdint.h>
 #define DEBUG 1
 #include "logger.h"
+#include "ei_x_extras.h"
 
 #define MODULE          "etimerfd"
 #define LOGFILE         "etimerfd.log"
@@ -74,26 +75,6 @@ static void dump_eterm_statistics()
 
     /* really free the freelist */
     erl_eterm_release();
-}
-
-static ErlDrvBinary *ei_x_to_new_binary(ei_x_buff *x)
-{
-    ErlDrvBinary *bin = driver_alloc_binary(x->index);
-
-    if(bin != NULL)
-        memcpy(bin->orig_bytes, x->buff, x->index);
-
-    return bin;
-}
-
-static int ei_x_decode_version(ei_x_buff *x, int *version)
-{
-    return ei_decode_version(x->buff, &x->index, version);
-}
-
-static int ei_x_decode_atom(ei_x_buff *x, char *atom)
-{
-    return ei_decode_atom(x->buff, &x->index, atom);
 }
 
 static ErlDrvSSizeT encode_error(ei_x_buff *x_buff, const char *str)
