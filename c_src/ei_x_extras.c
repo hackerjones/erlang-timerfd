@@ -32,6 +32,7 @@
 
 #include <ei.h>
 #include <erl_driver.h>
+#include <string.h>
 #include "ei_x_extras.h"
 
 ErlDrvBinary *ei_x_to_new_binary(ei_x_buff *x)
