@@ -38,7 +38,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
-#define DEBUG 1
+#include <stdbool.h>
 #include "logger.h"
 #include "ei_x_extras.h"
 
@@ -56,15 +56,18 @@ typedef struct
 {
     ErlDrvPort port;
     int fd;
+    bool ack_pending;
 } etimerfd;
 
 enum
 {
     CREATE  = 0,
     SETTIME = 1,
-    GETTIME = 2
+    GETTIME = 2,
+    ACK = 3
 };
 
+#if DEBUG > 0
 static void dump_eterm_statistics()
 {
     unsigned long allocated, freed;
@@ -76,6 +79,7 @@ static void dump_eterm_statistics()
     /* really free the freelist */
     erl_eterm_release();
 }
+#endif
 
 static ErlDrvSSizeT encode_error(ei_x_buff *x_buff, const char *str)
 {
@@ -153,7 +157,8 @@ static ErlDrvSSizeT settime(etimerfd *data, ei_x_buff *in_x_buff,
         if(timerfd_settime(data->fd, flags, &new_value, &old_value) == 0)
         {
             LOGGER_PRINT("timerfd_settime sucessful");
-            reply = erl_format("{ok,{{~i,~i},{~i,~i}}}",
+            reply = erl_format("{~a,{{~i,~i},{~i,~i}}}",
+                               ATOM_OK,
                                old_value.it_interval.tv_sec,
                                old_value.it_interval.tv_nsec,
                                old_value.it_value.tv_sec,
@@ -177,7 +182,8 @@ static ErlDrvSSizeT gettime(etimerfd *data, ei_x_buff *in_x_buff,
     if(timerfd_gettime(data->fd, &curr_value) == 0)
     {
         LOGGER_PRINT("timerfd_gettime");
-        reply = erl_format("{ok,{{~i,~i},{~i,~i}}}",
+        reply = erl_format("{~a,{{~i,~i},{~i,~i}}}",
+                           ATOM_OK,
                            curr_value.it_interval.tv_sec,
                            curr_value.it_interval.tv_nsec,
                            curr_value.it_value.tv_sec,
@@ -186,6 +192,25 @@ static ErlDrvSSizeT gettime(etimerfd *data, ei_x_buff *in_x_buff,
         erl_free_compound(reply);
     }
 
+    return out_x_buff->index;
+}
+
+static ErlDrvSSizeT ack(etimerfd *data, ei_x_buff *in_x_buff,
+                        ei_x_buff *out_x_buff)
+{
+    if(data->ack_pending)
+    {
+        LOGGER_PRINT("timeout acknowlaged");
+        data->ack_pending = false;
+        driver_select(data->port, FD2EVENT(data->fd),
+                      ERL_DRV_READ | ERL_DRV_USE, 1);
+        ei_x_encode_atom(out_x_buff, ATOM_OK);
+    }
+    else
+    {
+        LOGGER_PRINT("ack not pending");
+        encode_error(out_x_buff, "ack not pending");
+    }
     return out_x_buff->index;
 }
 
@@ -211,6 +236,7 @@ static ErlDrvData start(ErlDrvPort port, char *cmd)
         set_port_control_flags(port, PORT_CONTROL_FLAG_BINARY);
         data->port = port;
         data->fd = -1;
+        data->ack_pending = false;
         LOGGER_PRINT("port opened");
     }
     else
@@ -226,8 +252,10 @@ static void stop(ErlDrvData handle)
     etimerfd *data = (etimerfd *)handle;
 
     if(data->fd)
-        driver_select(data->port, FD2EVENT(data->fd),
-                      ERL_DRV_READ | ERL_DRV_USE, 0);
+    {
+        driver_select(data->port, FD2EVENT(data->fd), ERL_DRV_READ, 0);
+        close(data->fd);
+    }
 
     driver_free(data);
     LOGGER_PRINT("port closed");
@@ -266,6 +294,10 @@ static ErlDrvSSizeT control(ErlDrvData handle,
         tmp = gettime(data, &in_x_buff, &out_x_buff);
         break;
 
+    case ACK:
+        tmp = ack(data, &in_x_buff, &out_x_buff);
+        break;
+
     default:
         tmp = -1; /* "Let it crash" */
         break;
@@ -290,6 +322,10 @@ static void ready_input(ErlDrvData handle, ErlDrvEvent event)
     {
         if(read(EVENT2FD(event), &count, sizeof(count)) == sizeof(count))
         {
+            driver_select(data->port, FD2EVENT(data->fd),
+                          ERL_DRV_READ | ERL_DRV_USE, 0);
+            data->ack_pending = true;
+
             ei_x_new_with_version(&x);
             reply = erl_format("{etimerfd,{timeout,~i}}", count);
             ei_x_encode_term(&x, reply);
@@ -311,7 +347,6 @@ static void ready_input(ErlDrvData handle, ErlDrvEvent event)
 static void stop_select(ErlDrvEvent event, void *reserved)
 {
     LOGGER_PRINT(__PRETTY_FUNCTION__);
-    close(EVENT2FD(event));
 }
 
 ErlDrvEntry etimerfd_entry =

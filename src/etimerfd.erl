@@ -47,6 +47,7 @@
 -define(CREATE, 0).
 -define(SETTIME, 1).
 -define(GETTIME, 2).
+-define(ACK, 3).
 
 %% API exports
 -export([
@@ -56,7 +57,8 @@
          close/1,
          set_time/3,
          set_time/2,
-         get_time/1
+         get_time/1,
+         ack/1
         ]).
 
 -type timer() :: port().
@@ -121,7 +123,10 @@ close(Timer) when is_port(Timer) ->
 % @doc Arms (starts) or disarms (stops) the timer. Setting NewValue to zeros
 % results in disarming the timer. If Absolute is true an absolute timer is
 % started. If Absolute is false a relative timer is started. Returns the 
-% current setting of the timer like get_time/1. 
+% current setting of the timer like get_time/1. The owning process will 
+% receive timeout messages in its mailbox in the form of 
+% {etimerfd, {timeout, Overrun :: non_neg_integer()}} or
+% {etimerfd, {error, Reason :: string()}}
 % @see set_time/2
 
 set_time(Timer,
@@ -137,7 +142,6 @@ set_time(Timer,
 set_time(Timer, {IntervalSeconds, IntervalNanoseconds}, Absolute) ->
     set_time(Timer, {{IntervalSeconds, IntervalNanoseconds},
                      {IntervalSeconds, IntervalNanoseconds}}, Absolute).
-
 
 -spec set_time(Timer, NewValue) -> {ok, CurrentValue} when
       Timer :: timer(),
@@ -155,7 +159,6 @@ set_time(Timer, {IntervalSeconds, IntervalNanoseconds}) ->
     set_time(Timer, {{IntervalSeconds,IntervalNanoseconds},
                      {IntervalSeconds,IntervalNanoseconds}}).
 
-
 -spec get_time(Timer) -> {ok, CurrentValue} when
       Timer :: timer(),
       CurrentValue :: itimerspec().
@@ -163,6 +166,15 @@ set_time(Timer, {IntervalSeconds, IntervalNanoseconds}) ->
 
 get_time(Timer) when is_port(Timer) ->
     binary_to_term(port_control(Timer, ?GETTIME, term_to_binary([]))).
+
+-spec ack(Timer) -> ok | {error, Reason} when
+      Timer :: timer(),
+      Reason :: string().
+% @doc Acknowledges the last received timeout message. The port driver will 
+% not send more timeout messages until the current message is acknowlaged.
+
+ack(Timer) when is_port(Timer) ->
+    binary_to_term(port_control(Timer, ?ACK, term_to_binary([]))).
 
 %%=============================================================================
 %% Internal functions
@@ -182,24 +194,44 @@ create_timer(ClockId) ->
 %% Unit tests
 %%=============================================================================
 
-monotonic_test_loop({I,T0}) when I < 10 ->
-    receive
-        {_Port, {data, Overrun}} ->
-            T1 = erlang:monotonic_time(micro_seconds),
-            Span = T1 - T0,
-            ?debugFmt("~w microseconds between messages", [Span]),
-            ?debugFmt("~w", [binary_to_term(Overrun)]),
-            monotonic_test_loop({I+1,T1})
-    after
-        1000 ->
-            throw("timeout waiting for message")
-    end;
-monotonic_test_loop({_,_}) ->
-    ok.
+monotonic_test_loop(State = #{count := Count, 
+                              timer := Timer,
+                              time := Then,
+                              spans := Spans,
+                              overruns := Overruns}) when Count > 0 ->
+    RxData = receive
+                 {Timer, {data, Data}} ->
+                     ok = etimerfd:ack(Timer),
+                     {erlang:monotonic_time(micro_seconds),
+                      binary_to_term(Data)}
+             after
+                 1000 ->
+                     throw("timeout waiting for message")
+             end,  
+    {Now, {etimerfd, {timeout, Overrun}}} = RxData,
+    Span = Now - Then,
+    monotonic_test_loop(State#{count := Count - 1, time := Now,
+                               spans := [Span|Spans],
+                               overruns := [Overrun|Overruns]}); 
+monotonic_test_loop(State = #{spans := Spans, overruns := Overruns}) ->
+    {ok, State#{spans := lists:reverse(Spans), 
+                overruns := lists:reverse(Overruns)}}.
 
 monotonic_test() ->
     Timer = etimerfd:create(clock_monotonic),
     {ok, _} = etimerfd:set_time(Timer, {0,500*1000}),
-    monotonic_test_loop({0,erlang:monotonic_time(micro_seconds)}),
-    ok = etimerfd:close(Timer).
+    Result = monotonic_test_loop(
+               #{ timer => Timer, count => 2000, 
+                  time => erlang:monotonic_time(micro_seconds),
+                  spans => [], overruns => []}), 
+    ok = etimerfd:close(Timer),
+    {ok,#{spans := Spans, overruns := Overruns}} = Result,
+    Average = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
+    SpanFold = lists:foldl(Average, {0,0}, Spans),
+    SpanAvg = element(2,SpanFold) / element(1,SpanFold), 
+    ?debugFmt("Average ~w microseconds between messages", [SpanAvg]),
+    OverrunFold = lists:foldr(Average, {0,0}, Overruns),
+    OverrunAvg = element(2,OverrunFold) / element(1,OverrunFold),
+    ?debugFmt("Average overruns ~w", [OverrunAvg]),
+    ok.
 
