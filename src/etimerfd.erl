@@ -40,6 +40,7 @@
 %%% @end
 %%% ===========================================================================
 -module(etimerfd).
+-include_lib("eunit/include/eunit.hrl").
 
 -author('Mark Jones <markalanj@gmail.com>').
 
@@ -176,4 +177,29 @@ create_timer(ClockId) ->
         ok -> Timer;
         {error, Result} -> port_close(Timer), {error, Result}
     end.
+
+%%=============================================================================
+%% Unit tests
+%%=============================================================================
+
+monotonic_test_loop({I,T0}) when I < 10 ->
+    receive
+        {_Port, {data, Overrun}} ->
+            T1 = erlang:monotonic_time(micro_seconds),
+            Span = T1 - T0,
+            ?debugFmt("~w microseconds between messages", [Span]),
+            ?debugFmt("~w", [binary_to_term(Overrun)]),
+            monotonic_test_loop({I+1,T1})
+    after
+        1000 ->
+            throw("timeout waiting for message")
+    end;
+monotonic_test_loop({_,_}) ->
+    ok.
+
+monotonic_test() ->
+    Timer = etimerfd:create(clock_monotonic),
+    {ok, _} = etimerfd:set_time(Timer, {0,500*1000}),
+    monotonic_test_loop({0,erlang:monotonic_time(micro_seconds)}),
+    ok = etimerfd:close(Timer).
 

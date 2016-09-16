@@ -12,11 +12,16 @@ Build
 
     $ rebar3 compile
 
-
 Documentation
 -----
 
     $ rebar3 edoc
+    
+Unit Tests
+-----
+
+    $ rebar3 eunit
+    
 
 Disclaimer
 --
