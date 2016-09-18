@@ -110,7 +110,7 @@ create(ClockId) when is_atom(ClockId) ->
 % @doc Stop and close the timer object port.
 % @see stop/0
 
-close(Timer) when is_port(Timer) ->
+close(Timer) ->
     case port_close(Timer) of 
         true -> stop(), ok 
     end.
@@ -133,7 +133,7 @@ set_time(Timer,
          {{IntervalSeconds, IntervalNanoseconds},
           {InitialSeconds, InitialNanoseconds}},
          Absolute)
-  when is_port(Timer), IntervalSeconds > -1, IntervalNanoseconds > -1,
+  when IntervalSeconds > -1, IntervalNanoseconds > -1,
        InitialSeconds > -1, InitialNanoseconds > -1, is_boolean(Absolute) ->
     ITimerSpec = {{IntervalSeconds, IntervalNanoseconds},
                   {InitialSeconds, InitialNanoseconds}},
@@ -164,7 +164,7 @@ set_time(Timer, {IntervalSeconds, IntervalNanoseconds}) ->
       CurrentValue :: itimerspec().
 % @doc Returns the current setting of the timer.
 
-get_time(Timer) when is_port(Timer) ->
+get_time(Timer) ->
     binary_to_term(port_control(Timer, ?GETTIME, term_to_binary([]))).
 
 -spec ack(Timer) -> ok | {error, Reason} when
@@ -173,21 +173,22 @@ get_time(Timer) when is_port(Timer) ->
 % @doc Acknowledges the last received timeout message. The port driver will 
 % not send more timeout messages until the current message is acknowlaged.
 
-ack(Timer) when is_port(Timer) ->
+ack(Timer) ->
     binary_to_term(port_control(Timer, ?ACK, term_to_binary([]))).
 
 %%=============================================================================
 %% Internal functions
 %%=============================================================================
 
--spec create_timer(clockid()) -> timer().
+-spec create_timer(clockid()) -> timer() | {error, Reason} when
+      Reason :: string().
 
 create_timer(ClockId) ->
     Timer = open_port({spawn, atom_to_list(?MODULE)}, [binary]),
     case binary_to_term(port_control(Timer, ?CREATE, term_to_binary(ClockId)))
     of
         ok -> Timer;
-        {error, Result} -> port_close(Timer), {error, Result}
+        {error, Reason} -> port_close(Timer), {error, Reason}
     end.
 
 %%=============================================================================
