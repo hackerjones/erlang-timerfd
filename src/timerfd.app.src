@@ -1,6 +1,6 @@
 {application, timerfd,
  [{description, "Port driver for Linux timerfd"},
-  {vsn, "0.3.0"},
+  {vsn, "0.4.0"},
   {registered, []},
   {applications,
    [kernel,

@@ -34,7 +34,7 @@
 %%% @author Mark Jones <markalanj@gmail.com>
 %%% @copyright 2016 Mark Jones
 %%% @reference http://man7.org/linux/man-pages/man2/timerfd_create.2.html
-%%% @version 0.3.0
+%%% @version 0.4.0
 %%% @doc 
 %%% Linux timerfd port driver. 
 %%% @end
