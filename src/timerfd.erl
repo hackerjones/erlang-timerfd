@@ -40,7 +40,10 @@
 %%% @end
 %%% ===========================================================================
 -module(timerfd).
+
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 -author('Mark Jones <markalanj@gmail.com>').
 
@@ -94,9 +97,8 @@ stop() ->
         {error, not_loaded} -> ok
     end.
 
--spec create(ClockId) -> timer() | {error, Reason} when
-      ClockId :: clockid(),
-      Reason :: string().
+-spec create(ClockId) -> timer() when
+      ClockId :: clockid().
 % @doc Creates and returns a new timer object port. 
 % @see start/0
 
@@ -179,26 +181,27 @@ ack(Timer) ->
 %% Internal functions
 %%=============================================================================
 
--spec create_timer(clockid()) -> timer() | {error, Reason} when
-      Reason :: string().
+-spec create_timer(ClockId) -> timer() when
+      ClockId :: clockid().
 
 create_timer(ClockId) ->
     Timer = open_port({spawn, atom_to_list(?MODULE)}, [binary]),
     case binary_to_term(port_control(Timer, ?CREATE, term_to_binary(ClockId)))
     of
-        ok -> Timer;
-        {error, Reason} -> port_close(Timer), {error, Reason}
+        ok -> Timer
     end.
 
 %%=============================================================================
 %% Unit tests
 %%=============================================================================
 
-monotonic_test_loop(State = #{count := Count, 
-                              timer := Timer,
-                              time := Then,
-                              spans := Spans,
-                              expirations := Expirations}) when Count > 0 ->
+-ifdef(EUNIT).
+
+performance_test_loop(State = #{count := Count, 
+                                timer := Timer,
+                                time := Then,
+                                spans := Spans,
+                                expirations := Expirations}) when Count > 0 ->
     RxData = receive
                  {Timer, {data, Data}} ->
                      ok = ?MODULE:ack(Timer),
@@ -210,17 +213,17 @@ monotonic_test_loop(State = #{count := Count,
              end,  
     {Now, {timerfd, {timeout, Expiration}}} = RxData,
     Span = Now - Then,
-    monotonic_test_loop(State#{count := Count - 1, time := Now,
-                               spans := [Span|Spans],
-                               expirations := [Expiration|Expirations]}); 
-monotonic_test_loop(State = #{spans := Spans, expirations := Expirations}) ->
+    performance_test_loop(State#{count := Count - 1, time := Now,
+                                 spans := [Span|Spans],
+                                 expirations := [Expiration|Expirations]}); 
+performance_test_loop(State = #{spans := Spans, expirations := Expirations}) ->
     {ok, State#{spans := lists:reverse(Spans), 
                 expirations := lists:reverse(Expirations)}}.
 
-monotonic_test() ->
+performance_test() ->
     Timer = ?MODULE:create(clock_monotonic),
-    {ok, _} = ?MODULE:set_time(Timer, {0,500*1000}),
-    Result = monotonic_test_loop(
+    {ok, {{_,_},{_,_}}} = ?MODULE:set_time(Timer, {0,500*1000}),
+    Result = performance_test_loop(
                #{ timer => Timer, count => 2000, 
                   time => erlang:monotonic_time(micro_seconds),
                   spans => [], expirations => []}), 
@@ -234,4 +237,29 @@ monotonic_test() ->
     ExpirationAvg = element(2,ExpirationFold) / element(1,ExpirationFold),
     ?debugFmt("Average expirations ~w", [ExpirationAvg]),
     ok.
+
+create_failure_test() ->
+    try ?MODULE:create(notaclockid) of
+        _ -> throw("should have been an error")
+    catch
+        error:badarg -> ok
+    end,
+    try ?MODULE:create("notaclockid") of
+        _ -> throw("should have been an error")
+    catch
+        error:function_clause -> ok
+    end.
+
+get_time_test() ->
+    Timer = ?MODULE:create(clock_monotonic),
+    {ok, {{_,_},{_,_}}} = ?MODULE:get_time(Timer),
+    ok = ?MODULE:close(Timer).
+
+set_time_test() ->
+    Timer = ?MODULE:create(clock_monotonic),
+    {ok,{{_,_},{_,_}}} = ?MODULE:set_time(Timer, {{1,0},{1,0}}, false),
+    {ok,{{_,_},{_,_}}} = ?MODULE:set_time(Timer, {0,0}, false),
+    ok = ?MODULE:close(Timer).
+
+-endif.
 
