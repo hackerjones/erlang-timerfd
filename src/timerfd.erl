@@ -198,7 +198,7 @@ monotonic_test_loop(State = #{count := Count,
                               timer := Timer,
                               time := Then,
                               spans := Spans,
-                              overruns := Overruns}) when Count > 0 ->
+                              expirations := Expirations}) when Count > 0 ->
     RxData = receive
                  {Timer, {data, Data}} ->
                      ok = ?MODULE:ack(Timer),
@@ -208,14 +208,14 @@ monotonic_test_loop(State = #{count := Count,
                  1000 ->
                      throw("timeout waiting for message")
              end,  
-    {Now, {timerfd, {timeout, Overrun}}} = RxData,
+    {Now, {timerfd, {timeout, Expiration}}} = RxData,
     Span = Now - Then,
     monotonic_test_loop(State#{count := Count - 1, time := Now,
                                spans := [Span|Spans],
-                               overruns := [Overrun|Overruns]}); 
-monotonic_test_loop(State = #{spans := Spans, overruns := Overruns}) ->
+                               expirations := [Expiration|Expirations]}); 
+monotonic_test_loop(State = #{spans := Spans, expirations := Expirations}) ->
     {ok, State#{spans := lists:reverse(Spans), 
-                overruns := lists:reverse(Overruns)}}.
+                expirations := lists:reverse(Expirations)}}.
 
 monotonic_test() ->
     Timer = ?MODULE:create(clock_monotonic),
@@ -223,15 +223,15 @@ monotonic_test() ->
     Result = monotonic_test_loop(
                #{ timer => Timer, count => 2000, 
                   time => erlang:monotonic_time(micro_seconds),
-                  spans => [], overruns => []}), 
+                  spans => [], expirations => []}), 
     ok = ?MODULE:close(Timer),
-    {ok,#{spans := Spans, overruns := Overruns}} = Result,
+    {ok,#{spans := Spans, expirations := Expirations}} = Result,
     Average = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
     SpanFold = lists:foldl(Average, {0,0}, Spans),
     SpanAvg = element(2,SpanFold) / element(1,SpanFold), 
     ?debugFmt("Average ~w microseconds between messages", [SpanAvg]),
-    OverrunFold = lists:foldr(Average, {0,0}, Overruns),
-    OverrunAvg = element(2,OverrunFold) / element(1,OverrunFold),
-    ?debugFmt("Average overruns ~w", [OverrunAvg]),
+    ExpirationFold = lists:foldl(Average, {0,0}, Expirations),
+    ExpirationAvg = element(2,ExpirationFold) / element(1,ExpirationFold),
+    ?debugFmt("Average expirations ~w", [ExpirationAvg]),
     ok.
 
