@@ -42,8 +42,8 @@
 #include "logger.h"
 #include "ei_x_extras.h"
 
-#define MODULE          "etimerfd"
-#define LOGFILE         "etimerfd.log"
+#define MODULE          "timerfd"
+#define LOGFILE         "timerfd.log"
 
 #define ATOM_OK         "ok"
 #define ATOM_ERROR      "error"
@@ -57,7 +57,7 @@ typedef struct
     ErlDrvPort port;
     int fd;
     bool ack_pending;
-} etimerfd;
+} timerfd;
 
 enum
 {
@@ -89,7 +89,7 @@ static ErlDrvSSizeT encode_error(ei_x_buff *x_buff, const char *str)
     return x_buff->index;
 }
 
-static ErlDrvSSizeT create_timer(etimerfd *data, ei_x_buff *in_x_buff,
+static ErlDrvSSizeT create_timer(timerfd *data, ei_x_buff *in_x_buff,
                                  ei_x_buff *out_x_buff)
 {
     char atom[MAXATOMLEN];
@@ -128,7 +128,7 @@ static ErlDrvSSizeT create_timer(etimerfd *data, ei_x_buff *in_x_buff,
     return out_x_buff->index;
 }
 
-static ErlDrvSSizeT settime(etimerfd *data, ei_x_buff *in_x_buff,
+static ErlDrvSSizeT settime(timerfd *data, ei_x_buff *in_x_buff,
                             ei_x_buff *out_x_buff)
 {
     ETERM *term, *pattern, *reply;
@@ -173,7 +173,7 @@ static ErlDrvSSizeT settime(etimerfd *data, ei_x_buff *in_x_buff,
     return out_x_buff->index;
 }
 
-static ErlDrvSSizeT gettime(etimerfd *data, ei_x_buff *in_x_buff,
+static ErlDrvSSizeT gettime(timerfd *data, ei_x_buff *in_x_buff,
                             ei_x_buff *out_x_buff)
 {
     struct itimerspec curr_value;
@@ -195,7 +195,7 @@ static ErlDrvSSizeT gettime(etimerfd *data, ei_x_buff *in_x_buff,
     return out_x_buff->index;
 }
 
-static ErlDrvSSizeT ack(etimerfd *data, ei_x_buff *in_x_buff,
+static ErlDrvSSizeT ack(timerfd *data, ei_x_buff *in_x_buff,
                         ei_x_buff *out_x_buff)
 {
     if(data->ack_pending)
@@ -230,7 +230,7 @@ static void finish(void)
 
 static ErlDrvData start(ErlDrvPort port, char *cmd)
 {
-    etimerfd *data = (etimerfd *)driver_alloc(sizeof(etimerfd));
+    timerfd *data = (timerfd *)driver_alloc(sizeof(timerfd));
     if(data)
     {
         set_port_control_flags(port, PORT_CONTROL_FLAG_BINARY);
@@ -249,7 +249,7 @@ static ErlDrvData start(ErlDrvPort port, char *cmd)
 
 static void stop(ErlDrvData handle)
 {
-    etimerfd *data = (etimerfd *)handle;
+    timerfd *data = (timerfd *)handle;
 
     if(data->fd)
     {
@@ -266,7 +266,7 @@ static ErlDrvSSizeT control(ErlDrvData handle,
                             char *buf, ErlDrvSizeT len,
                             char **rbuf, ErlDrvSizeT rlen)
 {
-    etimerfd *data = (etimerfd *)handle;
+    timerfd *data = (timerfd *)handle;
     ei_x_buff in_x_buff = {buf, len, 0};
     ei_x_buff out_x_buff;
     int version;
@@ -311,7 +311,7 @@ static ErlDrvSSizeT control(ErlDrvData handle,
 
 static void ready_input(ErlDrvData handle, ErlDrvEvent event)
 {
-    etimerfd *data = (etimerfd *)handle;
+    timerfd *data = (timerfd *)handle;
     uint64_t count;
     ei_x_buff x;
     ETERM *reply;
@@ -327,7 +327,7 @@ static void ready_input(ErlDrvData handle, ErlDrvEvent event)
             data->ack_pending = true;
 
             ei_x_new_with_version(&x);
-            reply = erl_format("{etimerfd,{timeout,~i}}", count);
+            reply = erl_format("{timerfd,{timeout,~i}}", count);
             ei_x_encode_term(&x, reply);
             erl_free_compound(reply);
             driver_output(data->port, x.buff, x.index);
@@ -335,7 +335,7 @@ static void ready_input(ErlDrvData handle, ErlDrvEvent event)
         else
         {
             ei_x_new_with_version(&x);
-            reply = erl_format("{etimerfd,{~a,~s}}", ATOM_ERROR,
+            reply = erl_format("{timerfd,{~a,~s}}", ATOM_ERROR,
                                "incorrect read size");
             ei_x_encode_term(&x, reply);
             erl_free_compound(reply);
@@ -349,7 +349,7 @@ static void stop_select(ErlDrvEvent event, void *reserved)
     LOGGER_PRINT(__PRETTY_FUNCTION__);
 }
 
-ErlDrvEntry etimerfd_entry =
+ErlDrvEntry timerfd_entry =
 {
     init,                       /* init */
     start,                      /* start */
@@ -376,8 +376,8 @@ ErlDrvEntry etimerfd_entry =
     stop_select                 /* stop_select */
 };
 
-DRIVER_INIT(etimerfd)
+DRIVER_INIT(timerfd)
 {
-    return &etimerfd_entry;
+    return &timerfd_entry;
 }
 

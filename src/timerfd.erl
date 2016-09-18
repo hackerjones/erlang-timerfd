@@ -34,12 +34,12 @@
 %%% @author Mark Jones <markalanj@gmail.com>
 %%% @copyright 2016 Mark Jones
 %%% @reference http://man7.org/linux/man-pages/man2/timerfd_create.2.html
-%%% @version 0.1.0
+%%% @version 0.3.0
 %%% @doc 
 %%% Linux timerfd port driver. 
 %%% @end
 %%% ===========================================================================
--module(etimerfd).
+-module(timerfd).
 -include_lib("eunit/include/eunit.hrl").
 
 -author('Mark Jones <markalanj@gmail.com>').
@@ -125,8 +125,8 @@ close(Timer) when is_port(Timer) ->
 % started. If Absolute is false a relative timer is started. Returns the 
 % current setting of the timer like get_time/1. The owning process will 
 % receive timeout messages in its mailbox in the form of 
-% {etimerfd, {timeout, Overrun :: non_neg_integer()}} or
-% {etimerfd, {error, Reason :: string()}}
+% {timerfd, {timeout, Overrun :: non_neg_integer()}} or
+% {timerfd, {error, Reason :: string()}}
 % @see set_time/2
 
 set_time(Timer,
@@ -201,14 +201,14 @@ monotonic_test_loop(State = #{count := Count,
                               overruns := Overruns}) when Count > 0 ->
     RxData = receive
                  {Timer, {data, Data}} ->
-                     ok = etimerfd:ack(Timer),
+                     ok = ?MODULE:ack(Timer),
                      {erlang:monotonic_time(micro_seconds),
                       binary_to_term(Data)}
              after
                  1000 ->
                      throw("timeout waiting for message")
              end,  
-    {Now, {etimerfd, {timeout, Overrun}}} = RxData,
+    {Now, {timerfd, {timeout, Overrun}}} = RxData,
     Span = Now - Then,
     monotonic_test_loop(State#{count := Count - 1, time := Now,
                                spans := [Span|Spans],
@@ -218,13 +218,13 @@ monotonic_test_loop(State = #{spans := Spans, overruns := Overruns}) ->
                 overruns := lists:reverse(Overruns)}}.
 
 monotonic_test() ->
-    Timer = etimerfd:create(clock_monotonic),
-    {ok, _} = etimerfd:set_time(Timer, {0,500*1000}),
+    Timer = ?MODULE:create(clock_monotonic),
+    {ok, _} = ?MODULE:set_time(Timer, {0,500*1000}),
     Result = monotonic_test_loop(
                #{ timer => Timer, count => 2000, 
                   time => erlang:monotonic_time(micro_seconds),
                   spans => [], overruns => []}), 
-    ok = etimerfd:close(Timer),
+    ok = ?MODULE:close(Timer),
     {ok,#{spans := Spans, overruns := Overruns}} = Result,
     Average = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
     SpanFold = lists:foldl(Average, {0,0}, Spans),
