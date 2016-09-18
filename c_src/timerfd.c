@@ -204,13 +204,9 @@ static ErlDrvSSizeT ack(timerfd *data, ei_x_buff *in_x_buff,
         data->ack_pending = false;
         driver_select(data->port, FD2EVENT(data->fd),
                       ERL_DRV_READ | ERL_DRV_USE, 1);
-        ei_x_encode_atom(out_x_buff, ATOM_OK);
     }
-    else
-    {
-        LOGGER_PRINT("ack not pending");
-        encode_error(out_x_buff, "ack not pending");
-    }
+
+    ei_x_encode_atom(out_x_buff, ATOM_OK);
     return out_x_buff->index;
 }
 

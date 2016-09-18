@@ -167,9 +167,8 @@ set_time(Timer, {IntervalSeconds, IntervalNanoseconds}) ->
 get_time(Timer) ->
     binary_to_term(port_control(Timer, ?GETTIME, term_to_binary([]))).
 
--spec ack(Timer) -> ok | {error, Reason} when
-      Timer :: timer(),
-      Reason :: string().
+-spec ack(Timer) -> ok when
+      Timer :: timer().
 % @doc Acknowledges the last received timeout message. The port driver will 
 % not send more timeout messages until the current message is acknowlaged.
 
