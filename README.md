@@ -1,4 +1,4 @@
-etimerfd
+erlang-timerfd
 =====
 
 Erlang port driver for Linux timerfd facility.
