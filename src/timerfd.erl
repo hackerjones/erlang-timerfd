@@ -132,13 +132,11 @@ close(Timer) ->
 % @see set_time/2
 
 set_time(Timer,
-         {{IntervalSeconds, IntervalNanoseconds},
-          {InitialSeconds, InitialNanoseconds}},
+         ITimerSpec = {{IntervalSeconds, IntervalNanoseconds},
+                       {InitialSeconds, InitialNanoseconds}},
          Absolute)
   when IntervalSeconds > -1, IntervalNanoseconds > -1,
        InitialSeconds > -1, InitialNanoseconds > -1, is_boolean(Absolute) ->
-    ITimerSpec = {{IntervalSeconds, IntervalNanoseconds},
-                  {InitialSeconds, InitialNanoseconds}},
     binary_to_term(port_control(Timer, ?SETTIME,
                                 term_to_binary({ITimerSpec, Absolute})));
 set_time(Timer, {IntervalSeconds, IntervalNanoseconds}, Absolute) ->
@@ -220,6 +218,17 @@ performance_test_loop(State = #{spans := Spans, expirations := Expirations}) ->
     {ok, State#{spans := lists:reverse(Spans), 
                 expirations := lists:reverse(Expirations)}}.
 
+performance_test_print_statistics(#{spans := Spans, 
+                                    expirations := Expirations}) ->
+    F = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
+    SpanFold = lists:foldl(F, {0,0}, Spans),
+    SpanAvg = element(2,SpanFold) / element(1,SpanFold), 
+    ExpirationFold = lists:foldl(F, {0,0}, Expirations),
+    ExpirationAvg = element(2,ExpirationFold) / element(1,ExpirationFold),
+    ?debugFmt("Average ~w microseconds between messages", [SpanAvg]),
+    ?debugFmt("Average expirations ~w", [ExpirationAvg]),
+    ok.
+
 performance_test() ->
     Timer = ?MODULE:create(clock_monotonic),
     {ok, {{_,_},{_,_}}} = ?MODULE:set_time(Timer, {0,500*1000}),
@@ -228,14 +237,8 @@ performance_test() ->
                   time => erlang:monotonic_time(micro_seconds),
                   spans => [], expirations => []}), 
     ok = ?MODULE:close(Timer),
-    {ok,#{spans := Spans, expirations := Expirations}} = Result,
-    Average = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
-    SpanFold = lists:foldl(Average, {0,0}, Spans),
-    SpanAvg = element(2,SpanFold) / element(1,SpanFold), 
-    ?debugFmt("Average ~w microseconds between messages", [SpanAvg]),
-    ExpirationFold = lists:foldl(Average, {0,0}, Expirations),
-    ExpirationAvg = element(2,ExpirationFold) / element(1,ExpirationFold),
-    ?debugFmt("Average expirations ~w", [ExpirationAvg]),
+    {ok, State} = Result,
+    performance_test_print_statistics(State),
     ok.
 
 create_failure_test() ->
