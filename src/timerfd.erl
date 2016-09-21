@@ -231,7 +231,7 @@ performance_test_print_statistics(#{spans := Spans,
 
 performance_test() ->
     Timer = create(clock_monotonic),
-    {ok, {{_,_},{_,_}}} = set_time(Timer, {0,500*1000}),
+    ?assertMatch({ok, {{_,_},{_,_}}}, set_time(Timer, {0,500*1000})),
     Result = performance_test_loop(
                #{ timer => Timer, count => 2000, 
                   time => monotonic_time(micro_seconds),
@@ -247,14 +247,14 @@ create_failure_test() ->
 
 get_time_test() ->
     Timer = create(clock_monotonic),
-    {ok, {{_,_},{_,_}}} = get_time(Timer),
-    ok = close(Timer).
+    ?assertMatch({ok, {{_,_},{_,_}}}, get_time(Timer)),
+    ?assertMatch(ok, close(Timer)).
 
 set_time_test() ->
     Timer = create(clock_monotonic),
-    {ok,{{_,_},{_,_}}} = set_time(Timer, {{1,0},{1,0}}, false),
-    {ok,{{_,_},{_,_}}} = set_time(Timer, {0,0}, false),
-    ok = close(Timer).
+    ?assertMatch({ok,{{_,_},{_,_}}}, set_time(Timer, {{1,0},{1,0}}, false)),
+    ?assertMatch({ok,{{_,_},{_,_}}}, set_time(Timer, {0,0}, false)),
+    ?assertMatch(ok, close(Timer)).
 
 -endif.
 
