@@ -40,11 +40,6 @@
 %%% @end
 %%% ===========================================================================
 -module(timerfd).
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 -author('Mark Jones <markalanj@gmail.com>').
 
 -define(CREATE, 0).
@@ -196,6 +191,8 @@ create_timer(ClockId) ->
 %%=============================================================================
 
 -ifdef(EUNIT).
+
+-include_lib("eunit/include/eunit.hrl").
 
 performance_test_loop(State = #{count := Count, 
                                 timer := Timer,
