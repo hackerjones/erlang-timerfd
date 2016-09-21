@@ -216,9 +216,7 @@ performance_test_loop(State = #{count := Count,
     performance_test_loop(State#{count := Count - 1, time := Now,
                                  spans := [Span|Spans],
                                  expirations := [Expiration|Expirations]}); 
-performance_test_loop(State = #{spans := Spans, expirations := Expirations}) ->
-    {ok, State#{spans := lists:reverse(Spans), 
-                expirations := lists:reverse(Expirations)}}.
+performance_test_loop(State) -> {ok, State}.
 
 performance_test_print_statistics(#{spans := Spans, 
                                     expirations := Expirations}) ->
