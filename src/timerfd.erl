@@ -59,8 +59,6 @@
          ack/1
         ]).
 
--import(erlang,[monotonic_time/1]).
-
 -type timer() :: port().
 -type clockid() :: clock_monotonic | clock_realtime.
 -type timespec() :: { Seconds::non_neg_integer(),
@@ -185,73 +183,4 @@ create_timer(ClockId) ->
     of
         ok -> Timer
     end.
-
-%%=============================================================================
-%% Unit tests
-%%=============================================================================
-
--ifdef(EUNIT).
-
--include_lib("eunit/include/eunit.hrl").
-
-performance_test_loop(State = #{count := Count, 
-                                timer := Timer,
-                                time := Then,
-                                spans := Spans,
-                                expirations := Expirations}) when Count > 0 ->
-    RxData = receive
-                 {Timer, {data, Data}} ->
-                     ok = ack(Timer),
-                     {monotonic_time(micro_seconds),
-                      binary_to_term(Data)}
-             after
-                 1000 ->
-                     throw("timeout waiting for message")
-             end,  
-    {Now, {timerfd, {timeout, Expiration}}} = RxData,
-    Span = Now - Then,
-    performance_test_loop(State#{count := Count - 1, time := Now,
-                                 spans := [Span|Spans],
-                                 expirations := [Expiration|Expirations]}); 
-performance_test_loop(State) -> {ok, State}.
-
-performance_test_print_statistics(#{spans := Spans, 
-                                    expirations := Expirations}) ->
-    F = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
-    SpanFold = lists:foldl(F, {0,0}, Spans),
-    SpanAvg = element(2,SpanFold) / element(1,SpanFold), 
-    ExpirationFold = lists:foldl(F, {0,0}, Expirations),
-    ExpirationAvg = element(2,ExpirationFold) / element(1,ExpirationFold),
-    ?debugFmt("Average ~w microseconds between messages", [SpanAvg]),
-    ?debugFmt("Average expirations ~w", [ExpirationAvg]),
-    ok.
-
-performance_test() ->
-    Timer = create(clock_monotonic),
-    ?assertMatch({ok, {{_,_},{_,_}}}, set_time(Timer, {0,500*1000})),
-    Result = performance_test_loop(
-               #{ timer => Timer, count => 2000, 
-                  time => monotonic_time(micro_seconds),
-                  spans => [], expirations => []}), 
-    ok = close(Timer),
-    {ok, State} = Result,
-    performance_test_print_statistics(State),
-    ok.
-
-create_failure_test() ->
-    ?assertError(badarg,create(notaclockid)),
-    ?assertError(function_clause,create("notaclockid")).
-
-get_time_test() ->
-    Timer = create(clock_monotonic),
-    ?assertMatch({ok, {{_,_},{_,_}}}, get_time(Timer)),
-    ?assertMatch(ok, close(Timer)).
-
-set_time_test() ->
-    Timer = create(clock_monotonic),
-    ?assertMatch({ok,{{_,_},{_,_}}}, set_time(Timer, {{1,0},{1,0}}, false)),
-    ?assertMatch({ok,{{_,_},{_,_}}}, set_time(Timer, {0,0}, false)),
-    ?assertMatch(ok, close(Timer)).
-
--endif.
 
