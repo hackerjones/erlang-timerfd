@@ -64,6 +64,8 @@
          ack/1
         ]).
 
+-import(erlang,[monotonic_time/1]).
+
 -type timer() :: port().
 -type clockid() :: clock_monotonic | clock_realtime.
 -type timespec() :: { Seconds::non_neg_integer(),
@@ -203,7 +205,7 @@ performance_test_loop(State = #{count := Count,
     RxData = receive
                  {Timer, {data, Data}} ->
                      ok = ?MODULE:ack(Timer),
-                     {erlang:monotonic_time(micro_seconds),
+                     {monotonic_time(micro_seconds),
                       binary_to_term(Data)}
              after
                  1000 ->
@@ -234,7 +236,7 @@ performance_test() ->
     {ok, {{_,_},{_,_}}} = ?MODULE:set_time(Timer, {0,500*1000}),
     Result = performance_test_loop(
                #{ timer => Timer, count => 2000, 
-                  time => erlang:monotonic_time(micro_seconds),
+                  time => monotonic_time(micro_seconds),
                   spans => [], expirations => []}), 
     ok = ?MODULE:close(Timer),
     {ok, State} = Result,
