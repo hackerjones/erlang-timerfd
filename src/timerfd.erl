@@ -75,7 +75,8 @@
 % @see create/1
 
 start() ->
-    case erl_ddll:try_load("priv/", ?MODULE, [{driver_options, [kill_ports]}])
+    case erl_ddll:try_load(code:priv_dir(?MODULE), ?MODULE, 
+                           [{driver_options, [kill_ports]}])
     of
         {ok, loaded} -> ok;
         {ok, already_loaded} -> ok
