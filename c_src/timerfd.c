@@ -295,13 +295,18 @@ static ErlDrvSSizeT control(ErlDrvData handle,
         break;
 
     default:
-        tmp = -1; /* "Let it crash" */
+        tmp = -1; /* badarg */
         break;
     }
 
-    *rbuf = (char *)ei_x_to_new_binary(&out_x_buff);
-    ei_x_free(&out_x_buff);
+    /* Small optimization. If the VM supplied buffer is large enough to hold
+     * our data use it else allocate a new binary */
+    if(out_x_buff.index <= rlen)
+        memcpy(*rbuf, out_x_buff.buff, out_x_buff.index);
+    else
+        *rbuf = (char *)ei_x_to_new_binary(&out_x_buff);
 
+    ei_x_free(&out_x_buff);
     return tmp;
 }
 

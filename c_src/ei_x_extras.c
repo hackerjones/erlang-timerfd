@@ -35,7 +35,7 @@
 #include <string.h>
 #include "ei_x_extras.h"
 
-ErlDrvBinary *ei_x_to_new_binary(ei_x_buff *x)
+ErlDrvBinary *ei_x_to_new_binary(const ei_x_buff *x)
 {
     ErlDrvBinary *bin = driver_alloc_binary(x->index);
 

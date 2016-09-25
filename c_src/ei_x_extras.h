@@ -35,7 +35,7 @@
 
 #include <ei.h>
 
-ErlDrvBinary *ei_x_to_new_binary(ei_x_buff *x);
+ErlDrvBinary *ei_x_to_new_binary(const ei_x_buff *x);
 int ei_x_decode_version(ei_x_buff *x, int *version);
 int ei_x_decode_atom(ei_x_buff *x, char *atom);
 
