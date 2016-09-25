@@ -8,7 +8,7 @@
     erl_interface
    ]},
   {env,[]},
-  {modules, []},
+  {modules, [timerfd]},
 
   {maintainers, ["Mark Jones"]},
   {licenses, ["BSD"]},
