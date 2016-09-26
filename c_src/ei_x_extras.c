@@ -55,3 +55,33 @@ int ei_x_decode_atom(ei_x_buff *x, char *atom)
     return ei_decode_atom(x->buff, &x->index, atom);
 }
 
+int ei_x_decode_term(ei_x_buff *x, void *term)
+{
+    return ei_decode_term(x->buff, &x->index, term);
+}
+
+int ei_x_decode_tuple_header(ei_x_buff *x, int *arity)
+{
+    return ei_decode_tuple_header(x->buff, &x->index, arity);
+}
+
+int ei_x_decode_long(ei_x_buff *x, long *n)
+{
+    return ei_decode_long(x->buff, &x->index, n);
+}
+
+int ei_x_decode_longlong(ei_x_buff *x, long long *n)
+{
+    return ei_decode_longlong(x->buff, &x->index, n);
+}
+
+int ei_x_decode_ulong(ei_x_buff *x, unsigned long *n)
+{
+    return ei_decode_ulong(x->buff, &x->index, n);
+}
+
+int ei_x_decode_ulonglong(ei_x_buff *x, unsigned long long *n)
+{
+    return ei_decode_ulonglong(x->buff, &x->index, n);
+}
+

@@ -38,6 +38,12 @@
 ErlDrvBinary *ei_x_to_new_binary(const ei_x_buff *x);
 int ei_x_decode_version(ei_x_buff *x, int *version);
 int ei_x_decode_atom(ei_x_buff *x, char *atom);
+int ei_x_decode_term(ei_x_buff *x, void *term);
+int ei_x_decode_tuple_header(ei_x_buff *x, int *arity);
+int ei_x_decode_long(ei_x_buff *x, long *n);
+int ei_x_decode_longlong(ei_x_buff *x, long long *n);
+int ei_x_decode_ulong(ei_x_buff *x, unsigned long *n);
+int ei_x_decode_ulonglong(ei_x_buff *x, unsigned long long *n);
 
 #endif
 

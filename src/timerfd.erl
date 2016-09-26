@@ -34,7 +34,7 @@
 %%% @author Mark Jones <markalanj@gmail.com>
 %%% @copyright 2016 Mark Jones
 %%% @reference http://man7.org/linux/man-pages/man2/timerfd_create.2.html
-%%% @version 0.6.0
+%%% @version 0.7.0
 %%% @doc 
 %%% Linux timerfd port driver. 
 %%% @end
@@ -45,7 +45,7 @@
 -define(CREATE, 0).
 -define(SETTIME, 1).
 -define(GETTIME, 2).
--define(ACK, 3).
+-define(READ, 3).
 
 %% API exports
 -export([
@@ -56,7 +56,7 @@
          set_time/3,
          set_time/2,
          get_time/1,
-         ack/1
+         read/1
         ]).
 
 -type timer() :: port().
@@ -69,28 +69,28 @@
 %% API functions
 %%=============================================================================
 
--spec start() -> ok.
 % @doc Load the port driver shared library. The create/1 function calls
 % this before opening a new port.
 % @see create/1
+-spec start() -> ok | {error, ErrorDesc} when
+      ErrorDesc :: term().
 
 start() ->
-    case erl_ddll:try_load(code:priv_dir(?MODULE), ?MODULE, 
-                           [{driver_options, [kill_ports]}])
-    of
-        {ok, loaded} -> ok;
-        {ok, already_loaded} -> ok
+    case erl_ddll:load_driver(code:priv_dir(?MODULE), ?MODULE) of 
+        ok -> ok;
+        {error, ErrorDesc} -> {error, ErrorDesc}
     end.
 
--spec stop() -> ok.
+-spec stop() -> ok | {error, ErrorDesc} when
+      ErrorDesc :: term().
 %@doc Unload the port driver shared library. The close/1 function calls
 % this after closing a port.
 % @see close/1
 
 stop() ->
-    case erl_ddll:try_unload(?MODULE, [kill_ports]) of
-        {ok, _} -> ok;
-        {error, not_loaded} -> ok
+    case erl_ddll:unload_driver(?MODULE) of
+        ok -> ok;
+        {error, ErrorDesc} -> {error, ErrorDesc}
     end.
 
 -spec create(ClockId) -> timer() when
@@ -100,7 +100,8 @@ stop() ->
 
 create(ClockId) when is_atom(ClockId) ->
     case start() of
-        ok -> create_timer(ClockId)
+        ok -> do_create(ClockId);
+        Other -> Other
     end.
 
 -spec close(Timer) -> ok when
@@ -110,7 +111,7 @@ create(ClockId) when is_atom(ClockId) ->
 
 close(Timer) ->
     case port_close(Timer) of 
-        true -> stop(), ok 
+        true -> stop(), ok
     end.
 
 -spec set_time(Timer, NewValue, Absolute) -> {ok, CurrentValue} when
@@ -122,9 +123,7 @@ close(Timer) ->
 % results in disarming the timer. If Absolute is true an absolute timer is
 % started. If Absolute is false a relative timer is started. Returns the 
 % current setting of the timer like get_time/1. The owning process will 
-% receive timeout messages in its mailbox in the form of 
-% {timerfd, {timeout, Overrun :: non_neg_integer()}} or
-% {timerfd, {error, Reason :: string()}}
+% receive ready messages in its mailbox. 
 % @see set_time/2
 
 set_time(Timer,
@@ -163,25 +162,31 @@ set_time(Timer, {IntervalSeconds, IntervalNanoseconds}) ->
 get_time(Timer) ->
     binary_to_term(port_control(Timer, ?GETTIME, term_to_binary([]))).
 
--spec ack(Timer) -> ok when
-      Timer :: timer().
-% @doc Acknowledges the last received timeout message. The port driver will 
-% not send more timeout messages until the current message is acknowlaged.
+-spec read(Timer) -> {ok, Expirations}  | {error, ewouldblock} 
+                     | {error, Errno} when
+      Timer :: timer(),
+      Expirations :: non_neg_integer(),
+      Errno :: integer().
+% @doc Reads the number of expirations since the last read. The driver
+% sends a message to the port owner process when the timer expires. The driver 
+% will not send another ready message until the last event is acknowlaged 
+% via a read. This prevents overflowing a process mailbox with ready messages.
 
-ack(Timer) ->
-    binary_to_term(port_control(Timer, ?ACK, term_to_binary([]))).
+read(Timer) ->
+    binary_to_term(port_control(Timer, ?READ, term_to_binary([]))).
 
 %%=============================================================================
 %% Internal functions
 %%=============================================================================
 
--spec create_timer(ClockId) -> timer() when
+-spec do_create(ClockId) -> timer() when
       ClockId :: clockid().
 
-create_timer(ClockId) ->
+do_create(ClockId) ->
     Timer = open_port({spawn, atom_to_list(?MODULE)}, [binary]),
     case binary_to_term(port_control(Timer, ?CREATE, term_to_binary(ClockId)))
     of
-        ok -> Timer
+        ok -> Timer;
+        Other -> Other
     end.
 
