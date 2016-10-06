@@ -93,14 +93,15 @@ stop() ->
         {error, ErrorDesc} -> {error, ErrorDesc}
     end.
 
--spec create(ClockId) -> timer() when
+-spec create(ClockId) -> {ok, timer()} when
       ClockId :: clockid().
 % @doc Creates and returns a new timer object port. 
 % @see start/0
 
-create(ClockId) when is_atom(ClockId) ->
+create(ClockId) when ClockId == clock_monotonic
+                     orelse ClockId == clock_realtime ->
     case start() of
-        ok -> do_create(ClockId);
+        ok -> open_port_and_create_timer(ClockId);
         Other -> Other
     end.
 
@@ -179,14 +180,14 @@ read(Timer) ->
 %% Internal functions
 %%=============================================================================
 
--spec do_create(ClockId) -> timer() when
+-spec open_port_and_create_timer(ClockId) -> timer() when
       ClockId :: clockid().
 
-do_create(ClockId) ->
+open_port_and_create_timer(ClockId) ->
     Timer = open_port({spawn, atom_to_list(?MODULE)}, [binary]),
     case binary_to_term(port_control(Timer, ?CREATE, term_to_binary(ClockId)))
     of
-        ok -> Timer;
+        ok -> {ok, Timer};
         Other -> Other
     end.
 

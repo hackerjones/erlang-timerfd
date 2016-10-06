@@ -38,20 +38,20 @@
 perf_loop(State = #{count := Count, 
                     timer := Timer,
                     time := Then,
-                    spans := Spans,
-                    expirations := Expirations}) when Count > 0 ->
+                    span_list := SpanList,
+                    expiration_list := ExpirationList}) when Count > 0 ->
     receive
         {Timer, {data, Data}} ->
             case binary_to_term(Data) of 
                 {timerfd,ready} ->
                     Now = monotonic_time(micro_seconds),
-                    Span = Now - Then,
                     {ok, Expiration} = timerfd:read(Timer),
+                    Span = Now - Then,
                     perf_loop(State#{count := Count - 1, 
                                      time := Now,
-                                     spans := [Span|Spans],
-                                     expirations := [Expiration|Expirations]}) 
-
+                                     span_list := [Span|SpanList],
+                                     expiration_list := 
+                                         [Expiration|ExpirationList]}) 
             end
     after
         1000 ->
@@ -59,40 +59,41 @@ perf_loop(State = #{count := Count,
     end;  
 perf_loop(State) -> {ok, State}.
 
-perf_print_stats(#{spans := Spans, 
-                   expirations := Expirations}) ->
-    F = fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
-    SpanFold = lists:foldl(F, {0,0}, Spans),
+perf_print_stats(#{span_list := SpanList, 
+                   expiration_list := ExpirationList}) ->
+    SpanFold = lists:foldl(fun(X, {Len,Sum}) -> {Len+1, Sum+X} end,
+                           {0,0}, SpanList),
     SpanAvg = element(2,SpanFold) / element(1,SpanFold), 
-    ExpirationFold = lists:foldl(F, {0,0}, Expirations),
-    ExpirationAvg = element(2,ExpirationFold) / element(1,ExpirationFold),
+    Expirations = lists:foldl(fun(X, Sum) -> Sum+X end, 0, ExpirationList),
     ?debugFmt("Average ~w microseconds between messages", [SpanAvg]),
-    ?debugFmt("Average expirations ~w", [ExpirationAvg]),
+    ?debugFmt("Expirations ~w", [Expirations]),
     ok.
 
 perf_test() ->
-    Timer = timerfd:create(clock_monotonic),
+    {ok, Timer} = timerfd:create(clock_monotonic),
     ?assertMatch({ok, {{_,_},{_,_}}}, timerfd:set_time(Timer, {0,500*1000})),
     Result = perf_loop(
                #{ timer => Timer, count => 2000, 
                   time => monotonic_time(micro_seconds),
-                  spans => [], expirations => []}), 
+                  span_list => [], expiration_list => []}), 
     ok = timerfd:close(Timer),
     {ok, State} = Result,
     perf_print_stats(State),
     ok.
 
-create_failure_test() ->
-    ?assertError(badarg,timerfd:create(notaclockid)),
-    ?assertError(function_clause,timerfd:create("notaclockid")).
+create_test() ->
+    {ok, Timer} = timerfd:create(clock_monotonic),
+    timerfd:close(Timer),
+    ?assertError(function_clause, timerfd:create(notaclockid)),
+    ?assertError(function_clause, timerfd:create("notaclockid")).
 
 get_time_test() ->
-    Timer = timerfd:create(clock_monotonic),
+    {ok, Timer} = timerfd:create(clock_monotonic),
     ?assertMatch({ok, {{_,_},{_,_}}}, timerfd:get_time(Timer)),
     ?assertMatch(ok, timerfd:close(Timer)).
 
 set_time_test() ->
-    Timer = timerfd:create(clock_monotonic),
+    {ok, Timer} = timerfd:create(clock_monotonic),
     ?assertMatch({ok,{{_,_},{_,_}}}, timerfd:set_time(Timer, 
                                                       {{1,0},{1,0}}, false)),
     ?assertMatch({ok,{{_,_},{_,_}}}, timerfd:set_time(Timer, {0,0}, false)),
