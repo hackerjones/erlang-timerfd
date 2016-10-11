@@ -69,11 +69,11 @@
 %% API functions
 %%=============================================================================
 
+-spec start() -> ok | {error, ErrorDesc} when
+      ErrorDesc :: term().
 %% @doc Load the port driver shared library. The create/1 function calls
 %% this before opening a new port.
 %% @see create/1
--spec start() -> ok | {error, ErrorDesc} when
-      ErrorDesc :: term().
 
 start() ->
     case erl_ddll:load_driver(code:priv_dir(?MODULE), ?MODULE) of 
