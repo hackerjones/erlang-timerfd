@@ -1,0 +1,17 @@
+<html>
+<head>
+  <script src="./plotly-latest.min.js"></script>
+</head>
+<body>
+  <div id="myDiv"></div>
+  <script>
+    Plotly.d3.text("./data.dat", function(text){
+      rows = text.split("\n").map(function(s){return parseFloat(s)});
+      Plotly.newPlot('myDiv',
+        [{x: rows, type: 'histogram',}],
+        {yaxis:{type:'log'},
+         height:800});
+    });
+  </script>
+</body>
+</html>
